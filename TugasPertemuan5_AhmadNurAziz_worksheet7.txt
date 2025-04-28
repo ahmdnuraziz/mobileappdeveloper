@@ -1,0 +1,66 @@
+Ahmad Nur Aziz
+
+1.1
+-- Menambahkan kolom status_pembayaran ke dalam tabel pembayaran
+ALTER TABLE pembayaran ADD status_pembayaran VARCHAR(25);
+
+1.2
+-- Trigger untuk memeriksa pembayaran dan memperbarui status pembayaran
+DELIMITER $$
+
+CREATE TRIGGER cek_pembayaran
+BEFORE INSERT ON pembayaran
+FOR EACH ROW
+BEGIN
+    DECLARE total_bayar DECIMAL(10, 2);
+    DECLARE total_pesanan DECIMAL(10, 2);
+
+    -- Menghitung total pembayaran yang sudah dilakukan untuk pesanan ini
+    SELECT SUM(jumlah) INTO total_bayar FROM pembayaran WHERE pesanan_id = NEW.pesanan_id;
+
+    -- Mengambil total pesanan dari tabel pesanan
+    SELECT total INTO total_pesanan FROM pesanan WHERE id = NEW.pesanan_id;
+
+    -- Jika total pembayaran sudah mencukupi, set status pembayaran menjadi "Lunas"
+    IF total_bayar + NEW.jumlah >= total_pesanan THEN
+        SET NEW.status_pembayaran = 'Lunas';
+    END IF;
+END $$
+
+DELIMITER ;
+
+1.4
+-- Menambahkan data pada tabel pembayaran
+INSERT INTO pembayaran (no_kuitansi, tanggal, jumlah, ke, pesanan_id, status_pembayaran)
+VALUES ('KWI001', '2023-03-03', 200000, 1, 1, 'Belum Lunas');
+
+2.
+-- Stored Procedure untuk mengurangi stok produk
+DELIMITER $$
+
+CREATE PROCEDURE kurangi_stok(
+    IN produk_id INT,
+    IN jumlah_pesanan INT
+)
+BEGIN
+    -- Mengurangi stok produk sesuai dengan jumlah pesanan
+    UPDATE produk
+    SET stok = stok - jumlah_pesanan
+    WHERE id = produk_id;
+END $$
+
+DELIMITER ;
+
+3.
+-- Trigger untuk mengurangi stok produk setelah transaksi pesanan
+DELIMITER $$
+
+CREATE TRIGGER trig_kurangi_stok
+AFTER INSERT ON pesanan_items
+FOR EACH ROW
+BEGIN
+    -- Memanggil stored procedure kurangi_stok untuk mengurangi stok produk
+    CALL kurangi_stok(NEW.produk_id, NEW.jumlah);
+END $$
+
+DELIMITER ;
